@@ -3,3 +3,9 @@ nohup.out
 runs/
 .vscode/
 .DS_Store/
+.idea
+.idea/misc.xml
+.idea/modules.xml
+.idea/transformer_nlp.iml
+.idea/vcs.xml
+.ipynb_checkpoints/translation-checkpoint.ipynb

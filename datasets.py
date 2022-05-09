@@ -253,7 +253,7 @@ class TranslationDataset(torch.utils.data.Dataset):
                  start_token='[SOS]', end_token='[EOS]',
                  padding_token='[PAD]'):
 
-        self.dataframe = pandas.read_excel(file_root)
+        self.dataframe = pandas.read_csv(file_root)
         self.src_tokenizer = src_tokenizer
         self.tgt_tokenizer = tgt_tokenizer
         self.start_token = start_token
