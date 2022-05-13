@@ -1,6 +1,8 @@
 __pycache__/
 nohup.out
 runs/
+data/
+models/
 .vscode/
 .DS_Store/
 .idea

@@ -1,10 +1,10 @@
-import json
 import math
 import torch
 import torch.nn as nn
 import numpy as np
 
 from torch.autograd import Variable
+
 
 def get_attn_pad_mask(seq_q, seq_k, pad_index):
     batch_size, len_q = seq_q.size()
@@ -13,19 +13,23 @@ def get_attn_pad_mask(seq_q, seq_k, pad_index):
     pad_attn_mask = torch.as_tensor(pad_attn_mask, dtype=torch.int)
     return pad_attn_mask.expand(batch_size, len_q, len_k)
 
+
 def get_attn_subsequent_mask(seq):
     attn_shape = [seq.size(0), seq.size(1), seq.size(1)]
     subsequent_mask = np.triu(np.ones(attn_shape), k=1)
     subsequent_mask = torch.from_numpy(subsequent_mask).int()
     return subsequent_mask
 
+
 class GELU(nn.Module):
 
     def forward(self, x):
         return 0.5 * x * (1 + torch.tanh(math.sqrt(2 / math.pi) * (x + 0.044715 * torch.pow(x, 3))))
 
+
 class PositionalEncoding(nn.Module):
     "Implement the PE function."
+
     def __init__(self, d_model, dropout, max_len=5000):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
@@ -45,6 +49,7 @@ class PositionalEncoding(nn.Module):
                          requires_grad=False)
         return self.dropout(x)
 
+
 class ScaledDotProductAttention(nn.Module):
 
     def __init__(self, d_k, device):
@@ -61,8 +66,9 @@ class ScaledDotProductAttention(nn.Module):
         context = torch.matmul(attn, V)
         return context, attn
 
+
 class MultiHeadAttention(nn.Module):
-    
+
     def __init__(self, d_model, d_k, d_v, n_heads, device):
         super(MultiHeadAttention, self).__init__()
         self.WQ = nn.Linear(d_model, d_k * n_heads)
@@ -70,7 +76,7 @@ class MultiHeadAttention(nn.Module):
         self.WV = nn.Linear(d_model, d_v * n_heads)
 
         self.linear = nn.Linear(n_heads * d_v, d_model)
-        
+
         self.layer_norm = nn.LayerNorm(d_model)
         self.device = device
 
@@ -92,6 +98,7 @@ class MultiHeadAttention(nn.Module):
         output = self.linear(context)
         return self.layer_norm(output + Q), attn
 
+
 class PoswiseFeedForwardNet(nn.Module):
 
     def __init__(self, d_model, d_ff):
@@ -109,22 +116,24 @@ class PoswiseFeedForwardNet(nn.Module):
         output = self.l2(output)
         return self.layer_norm(output + residual)
 
+
 class EncoderLayer(nn.Module):
 
     def __init__(self, d_model, d_ff, d_k, d_v, n_heads, device):
         super(EncoderLayer, self).__init__()
         self.enc_self_attn = MultiHeadAttention(
-            d_model=d_model,d_k=d_k,
+            d_model=d_model, d_k=d_k,
             d_v=d_v, n_heads=n_heads, device=device)
         self.pos_ffn = PoswiseFeedForwardNet(
             d_model=d_model, d_ff=d_ff)
 
     def forward(self, enc_inputs, enc_self_attn_mask):
         enc_outputs, attn = self.enc_self_attn(
-                Q=enc_inputs, K=enc_inputs,
-                V=enc_inputs, attn_mask=enc_self_attn_mask)
+            Q=enc_inputs, K=enc_inputs,
+            V=enc_inputs, attn_mask=enc_self_attn_mask)
         enc_outputs = self.pos_ffn(enc_outputs)
         return enc_outputs, attn
+
 
 class Encoder(nn.Module):
 
@@ -160,15 +169,16 @@ class Encoder(nn.Module):
         enc_self_attns = enc_self_attns.permute([1, 0, 2, 3, 4])
         return enc_outputs, enc_self_attns
 
+
 class DecoderLayer(nn.Module):
 
     def __init__(self, d_model, d_ff, d_k, d_v, n_heads, device):
         super(DecoderLayer, self).__init__()
         self.dec_self_attn = MultiHeadAttention(
-            d_model=d_model,d_k=d_k,
+            d_model=d_model, d_k=d_k,
             d_v=d_v, n_heads=n_heads, device=device)
         self.dec_enc_attn = MultiHeadAttention(
-            d_model=d_model,d_k=d_k,
+            d_model=d_model, d_k=d_k,
             d_v=d_v, n_heads=n_heads, device=device)
         self.pos_ffn = PoswiseFeedForwardNet(
             d_model=d_model, d_ff=d_ff)
@@ -178,6 +188,7 @@ class DecoderLayer(nn.Module):
         dec_outputs, dec_enc_attn = self.dec_enc_attn(dec_outputs, enc_outputs, enc_outputs, dec_enc_attn_mask)
         dec_outputs = self.pos_ffn(dec_outputs)
         return dec_outputs, dec_self_attn, dec_enc_attn
+
 
 class Decoder(nn.Module):
 
@@ -222,8 +233,9 @@ class Decoder(nn.Module):
 
         dec_self_attns = dec_self_attns.permute([1, 0, 2, 3, 4])
         dec_enc_attns = dec_enc_attns.permute([1, 0, 2, 3, 4])
-        
+
         return dec_outputs, dec_self_attns, dec_enc_attns
+
 
 class MaskedDecoderLayer(nn.Module):
 
@@ -239,6 +251,7 @@ class MaskedDecoderLayer(nn.Module):
         dec_outputs, dec_self_attn = self.dec_self_attn(dec_inputs, dec_inputs, dec_inputs, dec_self_attn_mask)
         dec_outputs = self.pos_ffn(dec_outputs)
         return dec_outputs, dec_self_attn
+
 
 class MaskedDecoder(nn.Module):
 
@@ -276,6 +289,7 @@ class MaskedDecoder(nn.Module):
         dec_self_attns = torch.stack(dec_self_attns)
         dec_self_attns = dec_self_attns.permute([1, 0, 2, 3, 4])
         return dec_outputs, dec_self_attns
+
 
 class BertModel(nn.Module):
 
@@ -330,6 +344,7 @@ class BertModel(nn.Module):
 
         return logits_lm, logits_clsf, output
 
+
 class GPTModel(nn.Module):
 
     def __init__(self, vocab_size, d_model, d_ff,
@@ -348,6 +363,7 @@ class GPTModel(nn.Module):
         dec_outputs, dec_self_attns = self.decoder(dec_inputs)
         dec_logits = self.projection(dec_outputs)
         return dec_logits, dec_self_attns
+
 
 class Classifier(nn.Module):
 
@@ -368,6 +384,7 @@ class Classifier(nn.Module):
         mean_enc_outputs = torch.mean(enc_outputs, dim=1)
         logits = self.projection(mean_enc_outputs)
         return logits, enc_self_attns
+
 
 class Translation(nn.Module):
 
@@ -398,15 +415,15 @@ class Translation(nn.Module):
 
 if __name__ == '__main__':
     enc_input = [
-        [1,3,4,1,2,3],
-        [1,3,4,1,2,3],
-        [1,3,4,1,2,3],
-        [1,3,4,1,2,3]]
+        [1, 3, 4, 1, 2, 3],
+        [1, 3, 4, 1, 2, 3],
+        [1, 3, 4, 1, 2, 3],
+        [1, 3, 4, 1, 2, 3]]
     dec_input = [
-        [1,0,0,0,0,0],
-        [1,3,0,0,0,0],
-        [1,3,4,0,0,0],
-        [1,3,4,1,0,0]]
+        [1, 0, 0, 0, 0, 0],
+        [1, 3, 0, 0, 0, 0],
+        [1, 3, 4, 0, 0, 0],
+        [1, 3, 4, 1, 0, 0]]
     enc_input = torch.as_tensor(enc_input, dtype=torch.long).to(torch.device('cpu'))
     dec_input = torch.as_tensor(dec_input, dtype=torch.long).to(torch.device('cpu'))
     model = Translation(

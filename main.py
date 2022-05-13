@@ -1,4 +1,3 @@
-import six
 import json
 import torch
 import tokenization
@@ -6,8 +5,8 @@ import datasets
 
 from transformer.model import Translation
 
-def train():
 
+def train():
     config = json.load(open('config.json'))
     print(config)
 
@@ -25,7 +24,7 @@ def train():
         src_vocab_size=config['kor_vocab_length'],
         tgt_vocab_size=config['eng_vocab_length'],
         d_model=config['d_model'], d_ff=config['d_ff'],
-        d_k=config['d_k'], d_v=config['d_v'], n_heads=config['num_heads'], 
+        d_k=config['d_k'], d_v=config['d_v'], n_heads=config['num_heads'],
         n_layers=config['num_layers'], src_pad_index=src_pad_index,
         tgt_pad_index=src_pad_index, device=device).to(device)
 
@@ -107,6 +106,7 @@ def train():
             print(f'orig_text    : {orig_text}')
             print(f'predict_text : {predict_text}')
             print('-----------------')
+
 
 if __name__ == '__main__':
     train()
