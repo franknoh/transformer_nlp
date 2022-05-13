@@ -2,15 +2,15 @@ import math
 import torch
 import torch.nn as nn
 import numpy as np
-
 from torch.autograd import Variable
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def get_attn_pad_mask(seq_q, seq_k, pad_index):
     batch_size, len_q = seq_q.size()
     batch_size, len_k = seq_k.size()
     pad_attn_mask = seq_k.data.eq(pad_index).unsqueeze(1)
-    pad_attn_mask = torch.as_tensor(pad_attn_mask, dtype=torch.int)
+    pad_attn_mask = torch.as_tensor(pad_attn_mask, dtype=torch.int, device=device)
     return pad_attn_mask.expand(batch_size, len_q, len_k)
 
 
@@ -214,8 +214,8 @@ class Decoder(nn.Module):
         dec_outputs = self.tgt_emb(dec_inputs)
         dec_outputs = self.pos_emb(dec_outputs)
 
-        dec_self_attn_pad_mask = get_attn_pad_mask(dec_inputs, dec_inputs, self.pad_index)
-        dec_self_attn_subsequent_mask = get_attn_subsequent_mask(dec_inputs)
+        dec_self_attn_pad_mask = get_attn_pad_mask(dec_inputs, dec_inputs, self.pad_index).to(device)
+        dec_self_attn_subsequent_mask = get_attn_subsequent_mask(dec_inputs).to(device)
         dec_self_attn_mask = torch.gt((dec_self_attn_pad_mask + dec_self_attn_subsequent_mask), 0)
         dec_enc_attn_mask = get_attn_pad_mask(dec_inputs, enc_inputs, self.pad_index)
 

@@ -50,8 +50,8 @@ if __name__ == '__main__':
     parser.add_argument('--test_sentence', type=str, default='Neural Machine Translation (NMT) [41, 2] has recently '
                                                              'been introduced as a promising approach with the '
                                                              'potential of addressing many shortcomings of '
-                                                             'traditional machine translation systems.', help='test '
-                                                                                                              'sentence')
+                                                             'traditional machine translation systems.',
+                        help='test sentence')
     parser.add_argument('--mode', type=str, default='eng2kor', help='mode')
     args = parser.parse_args()
     test(args.model, args.test_sentence, args.mode)
