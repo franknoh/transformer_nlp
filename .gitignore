@@ -3,6 +3,8 @@ nohup.out
 runs/
 data/
 models/
+key.txt
+
 .vscode/
 .DS_Store/
 .idea
