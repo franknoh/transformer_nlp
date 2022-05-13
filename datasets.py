@@ -7,6 +7,7 @@ import copy
 
 import numpy as np
 
+
 class MaskedLMDataset(torch.utils.data.Dataset):
 
     def __init__(self, tokenizer, vocab_size, token_length,
@@ -32,7 +33,7 @@ class MaskedLMDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         input_ids = self.text[idx]
         segment_ids = [0] * len(input_ids)
-        
+
         n_pred = min(self.max_pred, max(1, int(round(len(input_ids) * self.mask_ratio))))
         cand_masked_pos = [i for i, token in enumerate(input_ids)]
         np.random.shuffle(cand_masked_pos)
@@ -63,6 +64,7 @@ class MaskedLMDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.text)
+
 
 class BertDataset(torch.utils.data.Dataset):
 
@@ -100,8 +102,8 @@ class BertDataset(torch.utils.data.Dataset):
         self.mask_idx = self.tokenizer.convert_tokens_to_ids([self.masked_word])[0]
 
         self.data_length = len(self.text)
-        self.positive_idx = [(i, i+1) for i in range(self.data_length-1)]
-        
+        self.positive_idx = [(i, i + 1) for i in range(self.data_length - 1)]
+
         self.negative_idx = []
         while len(self.negative_idx) < len(self.positive_idx):
             first_idx = np.random.choice(len(self.text))
@@ -119,7 +121,7 @@ class BertDataset(torch.utils.data.Dataset):
 
         n_pred = min(self.max_pred, max(1, int(round(len(input_ids) * self.mask_ratio))))
         cand_masked_pos = [i for i, token in enumerate(input_ids)
-                            if token != self.cls_idx and token != self.sep_idx]
+                           if token != self.cls_idx and token != self.sep_idx]
         np.random.shuffle(cand_masked_pos)
         masked_tokens, masked_pos = [], []
         for pos in cand_masked_pos[:n_pred]:
@@ -134,7 +136,7 @@ class BertDataset(torch.utils.data.Dataset):
             n_pad = self.max_pred - n_pred
             masked_tokens.extend([self.pad_idx] * n_pad)
             masked_pos.extend([self.pad_idx] * n_pad)
-       
+
         n_pad = self.token_length - len(input_ids)
         input_ids.extend([self.pad_idx] * n_pad)
         segment_ids.extend([self.pad_idx] * n_pad)
@@ -150,8 +152,10 @@ class BertDataset(torch.utils.data.Dataset):
         return torch.as_tensor(tensor, dtype=torch.long)
 
     def __getitem__(self, idx):
-        pos_input_ids, pos_segment_ids, pos_masked_tokens, pos_masked_pos, pos_isNext = self.item(idx, self.positive_idx)
-        neg_input_ids, neg_segment_ids, neg_masked_tokens, neg_masked_pos, neg_isNext = self.item(idx, self.negative_idx)
+        pos_input_ids, pos_segment_ids, pos_masked_tokens, pos_masked_pos, pos_isNext = self.item(idx,
+                                                                                                  self.positive_idx)
+        neg_input_ids, neg_segment_ids, neg_masked_tokens, neg_masked_pos, neg_isNext = self.item(idx,
+                                                                                                  self.negative_idx)
 
         pos_input_ids = self.to_long_tensor(pos_input_ids)
         pos_segment_ids = self.to_long_tensor(pos_segment_ids)
@@ -166,10 +170,11 @@ class BertDataset(torch.utils.data.Dataset):
         neg_isNext = self.to_long_tensor(neg_isNext)
 
         return pos_input_ids, pos_segment_ids, pos_masked_tokens, pos_masked_pos, pos_isNext, \
-                neg_input_ids, neg_segment_ids, neg_masked_tokens, neg_masked_pos, neg_isNext
+               neg_input_ids, neg_segment_ids, neg_masked_tokens, neg_masked_pos, neg_isNext
 
     def __len__(self):
         return len(self.positive_idx)
+
 
 class GPTDataset(torch.utils.data.Dataset):
 
@@ -217,10 +222,10 @@ class GPTDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.lines)
 
+
 class EmotionDataset(torch.utils.data.Dataset):
 
     def __init__(self, tokenizer, csv_file, length, padding_word='[PAD]'):
-
         self.tokenizer = tokenizer
         self.dataframe = pandas.read_csv(csv_file)
         self.length = length
@@ -244,6 +249,7 @@ class EmotionDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return self.dataframe.shape[0]
+
 
 class TranslationDataset(torch.utils.data.Dataset):
 
@@ -284,7 +290,7 @@ class TranslationDataset(torch.utils.data.Dataset):
 
         tgt_input = tgt_input[:self.tgt_length]
         tgt_output = tgt_output[:self.tgt_length]
-        
+
         while len(tgt_input) < self.tgt_length + 1:
             tgt_input.append(self.padding_token)
         while len(tgt_output) < self.tgt_length + 1:
