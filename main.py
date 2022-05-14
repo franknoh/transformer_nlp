@@ -3,40 +3,24 @@ import tokenization
 import datasets
 import wandb
 import time
+import json
+import argparse
 from transformer.model import Translation
 
-wandb.init(project="transformer_nlp", entity="franknoh")
 
-wandb.config = {
-    "kor_vocab_length": 50000,
-    "eng_vocab_length": 28998,
-    "d_model": 768,
-    "d_ff": 2048,
-    "d_k": 64,
-    "d_v": 64,
-    "num_layers": 12,
-    "num_heads": 8,
-    "start_word": "[SOS]",
-    "end_word": "[EOS]",
-    "sep_word": "[SEP]",
-    "cls_word": "[CLS]",
-    "pad_word": "[PAD]",
-    "mask_word": "[MASK]",
-    "max_seq_length": 40,
-    "num_train_epochs": 4,
-    "batch_size": 64,
-    "learning_rate": 0.00005,
-    "optimizer_gamma": 0.1
-}
+def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_vocab_path, eng_vocab_path):
+    if wandb_name is not None:
+        wandb.init(project=wandb_id, entity=wandb_name)
 
+    with open("config.json", "r") as f:
+        wandb.config = json.load(f)
 
-def train():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     kor_tokenizer = tokenization.FullTokenizer(
-        vocab_file='vocab/kor_vocab.txt', do_lower_case=False)
+        vocab_file=kor_vocab_path, do_lower_case=False)
     eng_tokenizer = tokenization.FullTokenizer(
-        vocab_file='vocab/eng_vocab.txt', do_lower_case=False)
+        vocab_file=eng_vocab_path, do_lower_case=False)
 
     kor_pad_index = kor_tokenizer.convert_tokens_to_ids([wandb.config['pad_word']])[0]
     eng_pad_index = eng_tokenizer.convert_tokens_to_ids([wandb.config['pad_word']])[0]
@@ -47,7 +31,7 @@ def train():
         d_model=wandb.config['d_model'], d_ff=wandb.config['d_ff'],
         d_k=wandb.config['d_k'], d_v=wandb.config['d_v'], n_heads=wandb.config['num_heads'],
         n_layers=wandb.config['num_layers'], src_pad_index=kor_pad_index,
-        tgt_pad_index=kor_pad_index, device=device).to(device)
+        tgt_pad_index=eng_pad_index, device=device).to(device)
 
     eng2kor_transformer = Translation(
         src_vocab_size=wandb.config['eng_vocab_length'],
@@ -55,14 +39,18 @@ def train():
         d_model=wandb.config['d_model'], d_ff=wandb.config['d_ff'],
         d_k=wandb.config['d_k'], d_v=wandb.config['d_v'], n_heads=wandb.config['num_heads'],
         n_layers=wandb.config['num_layers'], src_pad_index=eng_pad_index,
-        tgt_pad_index=eng_pad_index, device=device).to(device)
+        tgt_pad_index=kor_pad_index, device=device).to(device)
+
+    if ckpt_path != '':
+        kor2eng_transformer.load_state_dict(torch.load(f'{ckpt_path}/kor2eng.pth', map_location=device))
+        eng2kor_transformer.load_state_dict(torch.load(f'{ckpt_path}/eng2kor.pth', map_location=device))
 
     dataset = datasets.TranslationDataset(
         src_tokenizer=kor_tokenizer,
         tgt_tokenizer=eng_tokenizer,
         src_length=wandb.config['max_seq_length'],
         tgt_length=wandb.config['max_seq_length'],
-        file_root='data/corpus.csv',
+        file_root=dataset_path,
         src_column='원문',
         tgt_column='번역문')
 
@@ -100,12 +88,12 @@ def train():
         'respect to compound substances.for drug resistance and prediction of prognosis of cancer patients.'
     ]
 
-    for epoch in range(wandb.config['num_train_epochs']):
+    for epoch in range(num_train_epochs):
         kor2eng_total_loss = 0
         eng2kor_total_loss = 0
-        wandb_loss = []
         total_time = time.time()
-        for step, (kor_a_inputs, eng_a_inputs, kor2eng_target_batch, kor_b_inputs, eng_b_inputs, eng2kor_target_batch) in enumerate(dataloader):
+        for step, (kor_a_inputs, eng_a_inputs, kor2eng_target_batch, kor_b_inputs, eng_b_inputs,
+                   eng2kor_target_batch) in enumerate(dataloader):
             start = time.time()
 
             kor_a_inputs = kor_a_inputs.to(device)
@@ -157,6 +145,8 @@ def train():
         print(f'eng2kor lr    : {eng2kor_scheduler.get_last_lr()}')
         torch.save(kor2eng_transformer.state_dict(), f'models/kor2eng_{epoch}.pth')
         torch.save(eng2kor_transformer.state_dict(), f'models/eng2kor_{epoch}.pth')
+        torch.save(kor2eng_transformer.state_dict(), f'models/kor2eng.pth')
+        torch.save(eng2kor_transformer.state_dict(), f'models/eng2kor.pth')
         print(f'saved model to "models/kor2eng_{epoch}.pth", "models/eng2kor_{epoch}.pth"')
 
         for test_sentence in kor2eng_test_sentences:
@@ -209,4 +199,14 @@ def train():
 
 
 if __name__ == '__main__':
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--num_train_epochs', type=int, default=10, help='number of train epochs')
+    parser.add_argument('--ckpt_path', type=str, default='', help='path to load model')
+    parser.add_argument('--dataset_path', type=str, default='data/corpus.csv', help='path to load dataset')
+    parser.add_argument('--wandb_name', type=str, default='franknoh', help='name of wandb')
+    parser.add_argument('--wandb_id', type=str, default='transformer_nlp', help='id of wandb')
+    parser.add_argument('--kor_vocab_path', type=str, default='vocab/korean_vocab.txt', help='path to load kor vocab')
+    parser.add_argument('--eng_vocab_path', type=str, default='vocab/english_vocab.txt', help='path to load eng vocab')
+    args = parser.parse_args()
+    train(args.num_train_epochs, args.ckpt_path, args.dataset_path, args.wandb_name, args.wandb_id, args.kor_vocab_path,
+          args.eng_vocab_path)
