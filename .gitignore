@@ -4,6 +4,7 @@ runs/
 data/
 models/
 key.txt
+wandb/
 
 .vscode/
 .DS_Store/

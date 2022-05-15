@@ -5,16 +5,18 @@ import wandb
 import time
 import json
 import argparse
+from math import sqrt
 from transformer.model import Translation
 
-
-def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_vocab_path, eng_vocab_path):
+def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_vocab_path, eng_vocab_path, learning_rate, batch_size, max_seq_length, optimizer_gamma):
     if wandb_name is not None:
         wandb.init(project=wandb_id, entity=wandb_name)
-
     with open("config.json", "r") as f:
         wandb.config = json.load(f)
-
+    wandb.config['learning_rate'] = learning_rate
+    wandb.config['batch_size'] = batch_size
+    wandb.config['max_seq_length'] = max_seq_length
+    wandb.config['optimizer_gamma'] = optimizer_gamma
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     kor_tokenizer = tokenization.FullTokenizer(
@@ -44,8 +46,7 @@ def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_v
     if ckpt_path != '':
         kor2eng_transformer.load_state_dict(torch.load(f'{ckpt_path}/kor2eng.pth', map_location=device))
         eng2kor_transformer.load_state_dict(torch.load(f'{ckpt_path}/eng2kor.pth', map_location=device))
-
-    dataset = datasets.TranslationDataset(
+    kor2eng_dataset = datasets.TranslationDataset(
         src_tokenizer=kor_tokenizer,
         tgt_tokenizer=eng_tokenizer,
         src_length=wandb.config['max_seq_length'],
@@ -54,19 +55,30 @@ def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_v
         src_column='원문',
         tgt_column='번역문')
 
-    dataloader = torch.utils.data.DataLoader(
-        dataset=dataset, num_workers=4,
+    eng2kor_dataset = datasets.TranslationDataset(
+        src_tokenizer=eng_tokenizer,
+        tgt_tokenizer=kor_tokenizer,
+        src_length=wandb.config['max_seq_length'],
+        tgt_length=wandb.config['max_seq_length'],
+        file_root=dataset_path,
+        src_column='번역문',
+        tgt_column='원문')
+
+    kor2eng_dataloader = torch.utils.data.DataLoader(
+        dataset=kor2eng_dataset, num_workers=2,
+        batch_size=wandb.config['batch_size'], shuffle=True)
+
+    eng2kor_dataloader = torch.utils.data.DataLoader(
+        dataset=eng2kor_dataset, num_workers=2,
         batch_size=wandb.config['batch_size'], shuffle=True)
 
     kor2eng_criterion = torch.nn.CrossEntropyLoss()
     kor2eng_optimizer = torch.optim.Adam(kor2eng_transformer.parameters(), lr=wandb.config['learning_rate'])
-    kor2eng_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=kor2eng_optimizer,
-                                                               gamma=wandb.config['optimizer_gamma'])
+    kor2eng_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=kor2eng_optimizer, gamma=wandb.config['optimizer_gamma'])
 
     eng2kor_criterion = torch.nn.CrossEntropyLoss()
     eng2kor_optimizer = torch.optim.Adam(eng2kor_transformer.parameters(), lr=wandb.config['learning_rate'])
-    eng2kor_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=eng2kor_optimizer,
-                                                               gamma=wandb.config['optimizer_gamma'])
+    eng2kor_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=eng2kor_optimizer, gamma=wandb.config['optimizer_gamma'])
 
     kor2eng_test_sentences = [
         '본 발명에서 자성의 세기로는 50 ~ 15000 G 정도를 가지는 영구자석이라면 적용 가능하다',
@@ -91,57 +103,67 @@ def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_v
     for epoch in range(num_train_epochs):
         kor2eng_total_loss = 0
         eng2kor_total_loss = 0
+        wandb_loss = []
         total_time = time.time()
-        for step, (kor_a_inputs, eng_a_inputs, kor2eng_target_batch, kor_b_inputs, eng_b_inputs,
-                   eng2kor_target_batch) in enumerate(dataloader):
+        for step, (enc_inputs, dec_inputs, target_batch) in enumerate(kor2eng_dataloader):
             start = time.time()
-
-            kor_a_inputs = kor_a_inputs.to(device)
-            eng_a_inputs = eng_a_inputs.to(device)
-            kor_b_inputs = kor_b_inputs.to(device)
-            eng_b_inputs = eng_b_inputs.to(device)
-
-            kor2eng_target_batch = kor2eng_target_batch.to(device)
-            eng2kor_target_batch = eng2kor_target_batch.to(device)
+            enc_inputs = enc_inputs.to(device)
+            dec_inputs = dec_inputs.to(device)
+            target_batch = target_batch.to(device)
 
             kor2eng_optimizer.zero_grad()
-            dec_logits, enc_self_attns, dec_self_attns, dec_enc_attns = kor2eng_transformer(kor_a_inputs, eng_a_inputs)
-            kor2eng_loss = kor2eng_criterion(
+            dec_logits, enc_self_attns, dec_self_attns, dec_enc_attns = kor2eng_transformer(enc_inputs, dec_inputs)
+            loss = kor2eng_criterion(
                 dec_logits.view(-1, dec_logits.size(-1)),
-                kor2eng_target_batch.contiguous().view(-1))
-            kor2eng_loss.backward()
+                target_batch.contiguous().view(-1))
+            loss.backward()
             kor2eng_optimizer.step()
-            kor2eng_total_loss += kor2eng_loss.item()
 
-            eng2kor_optimizer.zero_grad()
-            dec_logits, enc_self_attns, dec_self_attns, dec_enc_attns = eng2kor_transformer(eng_b_inputs, kor_b_inputs)
-            eng2kor_loss = eng2kor_criterion(
-                dec_logits.view(-1, dec_logits.size(-1)),
-                eng2kor_target_batch.contiguous().view(-1))
-            eng2kor_loss.backward()
-            eng2kor_optimizer.step()
-            eng2kor_total_loss += eng2kor_loss.item()
+            kor2eng_total_loss += loss.item()
 
             print('--------kor2eng--------')
-            print(f'loss  : {kor2eng_loss.item()}')
+            print(f'epoch : {epoch+1}/{num_train_epochs}')
+            print(f'step  : {step}/{len(kor2eng_dataloader)}')
+            print(f'loss  : {loss.item()}')
             print(f'lr    : {kor2eng_scheduler.get_last_lr()}')
-            print('--------eng2kor--------')
-            print(f'loss  : {eng2kor_loss.item()}')
-            print(f'lr    : {eng2kor_scheduler.get_last_lr()}')
-            print(f'epoch : {epoch + 1}/{wandb.config["num_train_epochs"]}')
-            print(f'step  : {step}/{len(dataloader)}')
             print(f'time  : {time.time() - start}sec')
-            print(f'eta   : {(len(dataloader) - step) * (time.time() - start) / 60:.2f}min')
-            wandb.log({'kor2eng_loss': kor2eng_loss, 'eng2kor_loss': eng2kor_loss,
-                       'combined_loss': 2 / (1 / kor2eng_loss + 1 / eng2kor_loss)})
+            print(f'eta   : {(len(kor2eng_dataloader) - step)* (time.time() - start)/60:.2f}min')
+            wandb_loss.append([loss.item()])
         kor2eng_scheduler.step()
+        for step, (enc_inputs, dec_inputs, target_batch) in enumerate(eng2kor_dataloader):
+            start = time.time()
+            enc_inputs = enc_inputs.to(device)
+            dec_inputs = dec_inputs.to(device)
+            target_batch = target_batch.to(device)
+
+            eng2kor_optimizer.zero_grad()
+            dec_logits, enc_self_attns, dec_self_attns, dec_enc_attns = eng2kor_transformer(enc_inputs, dec_inputs)
+            loss = eng2kor_criterion(
+                dec_logits.view(-1, dec_logits.size(-1)),
+                target_batch.contiguous().view(-1))
+            loss.backward()
+            eng2kor_optimizer.step()
+
+            eng2kor_total_loss += loss.item()
+
+            print('--------eng2kor--------')
+            print(f'epoch : {epoch+1}/{num_train_epochs}')
+            print(f'step  : {step}/{len(eng2kor_dataloader)}')
+            print(f'loss  : {loss.item()}')
+            print(f'lr    : {eng2kor_scheduler.get_last_lr()}')
+            print(f'time  : {time.time() - start}sec')
+            print(f'eta   : {(len(eng2kor_dataloader) - step)* (time.time() - start)/60:.2f}min')
+            wandb_loss[step].append(loss.item())
         eng2kor_scheduler.step()
+        for loss in wandb_loss:
+            wandb.log({'kor2eng_loss': loss[0], 'eng2kor_loss': loss[1], 'combined_loss': sqrt(loss[0]**2 + loss[1]**2)})
+
         print('----------------------')
-        print(f'epoch         : {epoch + 1}/{wandb.config["num_train_epochs"]}')
-        print(f'total time    : {(time.time() - total_time) / 3600:.2f}hr')
-        print(f'kor2eng loss  : {kor2eng_total_loss / len(dataloader)}')
+        print(f'epoch         : {epoch+1}/{num_train_epochs}')
+        print(f'total time    : {(time.time() - total_time)/3600:.2f}hr')
+        print(f'kor2eng loss  : {kor2eng_total_loss / len(kor2eng_dataloader)}')
         print(f'kor2eng lr    : {kor2eng_scheduler.get_last_lr()}')
-        print(f'eng2kor loss  : {eng2kor_total_loss / len(dataloader)}')
+        print(f'eng2kor loss  : {eng2kor_total_loss / len(eng2kor_dataloader)}')
         print(f'eng2kor lr    : {eng2kor_scheduler.get_last_lr()}')
         torch.save(kor2eng_transformer.state_dict(), f'models/kor2eng_{epoch}.pth')
         torch.save(eng2kor_transformer.state_dict(), f'models/eng2kor_{epoch}.pth')
@@ -205,8 +227,12 @@ if __name__ == '__main__':
     parser.add_argument('--dataset_path', type=str, default='data/corpus.csv', help='path to load dataset')
     parser.add_argument('--wandb_name', type=str, default='franknoh', help='name of wandb')
     parser.add_argument('--wandb_id', type=str, default='transformer_nlp', help='id of wandb')
-    parser.add_argument('--kor_vocab_path', type=str, default='vocab/korean_vocab.txt', help='path to load kor vocab')
-    parser.add_argument('--eng_vocab_path', type=str, default='vocab/english_vocab.txt', help='path to load eng vocab')
+    parser.add_argument('--kor_vocab_path', type=str, default='vocab/kor_vocab.txt', help='path to load kor vocab')
+    parser.add_argument('--eng_vocab_path', type=str, default='vocab/eng_vocab.txt', help='path to load eng vocab')
+    parser.add_argument('--learning_rate', type=float, default=0.00005, help='learning rate')
+    parser.add_argument('--batch_size', type=int, default=32, help='batch size')
+    parser.add_argument('--max_seq_length', type=int, default=40, help='max sequence length')
+    parser.add_argument('--optimizer_gamma', type=float, default=0.9, help='optimizer gamma')
     args = parser.parse_args()
     train(args.num_train_epochs, args.ckpt_path, args.dataset_path, args.wandb_name, args.wandb_id, args.kor_vocab_path,
-          args.eng_vocab_path)
+          args.eng_vocab_path, args.learning_rate, args.batch_size, args.max_seq_length, args.optimizer_gamma)

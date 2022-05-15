@@ -31,7 +31,7 @@ def validate_case_matches_checkpoint(do_lower_case, init_checkpoint):
     """Checks whether the casing config is consistent with the checkpoint name."""
 
     # The casing has to be passed in by the user and there is no explicit check
-    # whether it matches the checkpoint. The casing information probably
+    # as to whether it matches the checkpoint. The casing information probably
     # should have been stored in the bert_config.json file, but it's not, so
     # we have to heuristically detect it to validate.
 
@@ -272,14 +272,14 @@ class BasicTokenizer(object):
         # as is Japanese Hiragana and Katakana. Those alphabets are used to write
         # space-separated words, so they are not treated specially and handled
         # like the all of the other languages.
-        if ((0x4E00 <= cp <= 0x9FFF) or  #
-                (0x3400 <= cp <= 0x4DBF) or  #
-                (0x20000 <= cp <= 0x2A6DF) or  #
-                (0x2A700 <= cp <= 0x2B73F) or  #
-                (0x2B740 <= cp <= 0x2B81F) or  #
-                (0x2B820 <= cp <= 0x2CEAF) or
-                (0xF900 <= cp <= 0xFAFF) or  #
-                (0x2F800 <= cp <= 0x2FA1F)):  #
+        if ((cp >= 0x4E00 and cp <= 0x9FFF) or  #
+                (cp >= 0x3400 and cp <= 0x4DBF) or  #
+                (cp >= 0x20000 and cp <= 0x2A6DF) or  #
+                (cp >= 0x2A700 and cp <= 0x2B73F) or  #
+                (cp >= 0x2B740 and cp <= 0x2B81F) or  #
+                (cp >= 0x2B820 and cp <= 0x2CEAF) or
+                (cp >= 0xF900 and cp <= 0xFAFF) or  #
+                (cp >= 0x2F800 and cp <= 0x2FA1F)):  #
             return True
 
         return False
@@ -387,8 +387,8 @@ def _is_punctuation(char):
     # Characters such as "^", "$", and "`" are not in the Unicode
     # Punctuation class but we treat them as punctuation anyways, for
     # consistency.
-    if ((33 <= cp <= 47) or (58 <= cp <= 64) or
-            (91 <= cp <= 96) or (123 <= cp <= 126)):
+    if ((cp >= 33 and cp <= 47) or (cp >= 58 and cp <= 64) or
+            (cp >= 91 and cp <= 96) or (cp >= 123 and cp <= 126)):
         return True
     cat = unicodedata.category(char)
     if cat.startswith("P"):
