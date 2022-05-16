@@ -5,14 +5,16 @@ import wandb
 import time
 import json
 import argparse
+import utils
 from math import sqrt
 from transformer.model import Translation
 
-def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_vocab_path, eng_vocab_path, learning_rate, batch_size, max_seq_length, optimizer_gamma):
-    if wandb_name is not None:
-        wandb.init(project=wandb_id, entity=wandb_name)
+def train(num_train_epochs, ckpt_path, dataset_path, learning_rate, batch_size, max_seq_length, optimizer_gamma):
     with open("config.json", "r") as f:
-        wandb.config = json.load(f)
+        config = json.load(f)
+    if config['wandb_name'] is not None:
+        wandb.init(project=config['wandb_id'], entity=config['wandb_name'])
+        wandb.config = config
     wandb.config['learning_rate'] = learning_rate
     wandb.config['batch_size'] = batch_size
     wandb.config['max_seq_length'] = max_seq_length
@@ -20,9 +22,9 @@ def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_v
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     kor_tokenizer = tokenization.FullTokenizer(
-        vocab_file=kor_vocab_path, do_lower_case=False)
+        vocab_file=wandb.config['kor_vocab_path'], do_lower_case=False)
     eng_tokenizer = tokenization.FullTokenizer(
-        vocab_file=eng_vocab_path, do_lower_case=False)
+        vocab_file=wandb.config['eng_vocab_path'], do_lower_case=False)
 
     kor_pad_index = kor_tokenizer.convert_tokens_to_ids([wandb.config['pad_word']])[0]
     eng_pad_index = eng_tokenizer.convert_tokens_to_ids([wandb.config['pad_word']])[0]
@@ -126,7 +128,7 @@ def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_v
             print(f'step  : {step}/{len(kor2eng_dataloader)}')
             print(f'loss  : {loss.item()}')
             print(f'lr    : {kor2eng_scheduler.get_last_lr()}')
-            print(f'time  : {time.time() - start}sec')
+            print(f'time  : {utils.sec_to_time(time.time() - start)}')
             print(f'eta   : {(len(kor2eng_dataloader) - step)* (time.time() - start)/60:.2f}min')
             wandb_loss.append([loss.item()])
         kor2eng_scheduler.step()
@@ -151,7 +153,7 @@ def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_v
             print(f'step  : {step}/{len(eng2kor_dataloader)}')
             print(f'loss  : {loss.item()}')
             print(f'lr    : {eng2kor_scheduler.get_last_lr()}')
-            print(f'time  : {time.time() - start}sec')
+            print(f'time  : {utils.sec_to_time(time.time() - start)}')
             print(f'eta   : {(len(eng2kor_dataloader) - step)* (time.time() - start)/60:.2f}min')
             wandb_loss[step].append(loss.item())
         eng2kor_scheduler.step()
@@ -160,7 +162,7 @@ def train(num_train_epochs, ckpt_path, dataset_path, wandb_name, wandb_id, kor_v
 
         print('----------------------')
         print(f'epoch         : {epoch+1}/{num_train_epochs}')
-        print(f'total time    : {(time.time() - total_time)/3600:.2f}hr')
+        print(f'total time    : {utils.sec_to_time(time.time() - total_time)}')
         print(f'kor2eng loss  : {kor2eng_total_loss / len(kor2eng_dataloader)}')
         print(f'kor2eng lr    : {kor2eng_scheduler.get_last_lr()}')
         print(f'eng2kor loss  : {eng2kor_total_loss / len(eng2kor_dataloader)}')
@@ -225,14 +227,9 @@ if __name__ == '__main__':
     parser.add_argument('--num_train_epochs', type=int, default=10, help='number of train epochs')
     parser.add_argument('--ckpt_path', type=str, default='', help='path to load model')
     parser.add_argument('--dataset_path', type=str, default='data/corpus.csv', help='path to load dataset')
-    parser.add_argument('--wandb_name', type=str, default='franknoh', help='name of wandb')
-    parser.add_argument('--wandb_id', type=str, default='transformer_nlp', help='id of wandb')
-    parser.add_argument('--kor_vocab_path', type=str, default='vocab/kor_vocab.txt', help='path to load kor vocab')
-    parser.add_argument('--eng_vocab_path', type=str, default='vocab/eng_vocab.txt', help='path to load eng vocab')
     parser.add_argument('--learning_rate', type=float, default=0.00005, help='learning rate')
     parser.add_argument('--batch_size', type=int, default=32, help='batch size')
     parser.add_argument('--max_seq_length', type=int, default=40, help='max sequence length')
     parser.add_argument('--optimizer_gamma', type=float, default=0.9, help='optimizer gamma')
     args = parser.parse_args()
-    train(args.num_train_epochs, args.ckpt_path, args.dataset_path, args.wandb_name, args.wandb_id, args.kor_vocab_path,
-          args.eng_vocab_path, args.learning_rate, args.batch_size, args.max_seq_length, args.optimizer_gamma)
+    train(args.num_train_epochs, args.ckpt_path, args.dataset_path, args.learning_rate, args.batch_size, args.max_seq_length, args.optimizer_gamma)

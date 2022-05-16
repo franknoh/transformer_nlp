@@ -29,9 +29,9 @@ tokenizer.train(files=[f"data/{src}.txt"], trainer=trainer)
 
 tokenizer.save(f"data/{src}_vt.txt")
 
-with open(f"data/{src}_vt.txt", "r", encoding="utf-8") as f:
+with open(f"data/{src}_vt.txt", "r", encoding="cp949") as f:
     data = json.load(f)
-    with open(f"data/{src}_vocab.txt", "w", encoding="utf-8") as f2:
+    with open(f"data/{src}_vocab.txt", "w", encoding="cp949") as f2:
         for i in data['model']['vocab']:
             if i is not None:
                 f2.write(i + '\n')

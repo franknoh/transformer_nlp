@@ -3,23 +3,24 @@ import tokenization
 import argparse
 import json
 import time
+import utils
 from transformer.model import Translation
 
 with open("config.json", "r") as f:
     config = json.load(f)
 
 
-def test(model, test_sentence, mode, kor_vocab, eng_vocab):
+def test(model, test_sentence, mode):
     if mode == "eng2kor":
         src_tokenizer = tokenization.FullTokenizer(
-            vocab_file=kor_vocab, do_lower_case=False)
+            vocab_file=config['kor_vocab'], do_lower_case=False)
         tgt_tokenizer = tokenization.FullTokenizer(
-            vocab_file=eng_vocab, do_lower_case=False)
+            vocab_file=config['eng_vocab'], do_lower_case=False)
     elif mode == "kor2eng":
         src_tokenizer = tokenization.FullTokenizer(
-            vocab_file=kor_vocab, do_lower_case=False)
+            vocab_file=config['kor_vocab'], do_lower_case=False)
         tgt_tokenizer = tokenization.FullTokenizer(
-            vocab_file=eng_vocab, do_lower_case=False)
+            vocab_file=config['eng_vocab'], do_lower_case=False)
     else:
         raise Exception("mode should be either 'eng2kor' or 'kor2eng'")
 
@@ -63,7 +64,7 @@ def test(model, test_sentence, mode, kor_vocab, eng_vocab):
     predict_text = predict_text.replace("##", "")
     print(f'orignal text : {orig_text}')
     print(f'predict text : {predict_text}')
-    print(f'elapsed time : {time.time() - start_time}sec')
+    print(f'elapsed time : {utils.sec_to_time(time.time() - start_time)}')
     print('-----------------')
 
 
@@ -73,7 +74,5 @@ if __name__ == '__main__':
     parser.add_argument('--test_sentence', type=str, default='각 전자석의 회전 방향이나 이동 방향은 반드시 일치시켜 둘 필요는 없다.',
                         help='test sentence')
     parser.add_argument('--mode', type=str, default='kor2eng', help='mode')
-    parser.add_argument('--kor_vocab', type=str, default='vocab/korean_vocab.txt', help='korean vocab')
-    parser.add_argument('--eng_vocab', type=str, default='vocab/english_vocab.txt', help='english vocab')
     args = parser.parse_args()
-    test(args.model, args.test_sentence, args.mode, args.kor_vocab, args.eng_vocab)
+    test(args.model, args.test_sentence, args.mode)
