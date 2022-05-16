@@ -1,6 +1,6 @@
 {
-    "kor_vocab_length": 50000,
-    "eng_vocab_length": 28998,
+    "kor_vocab_length": 49997,
+    "eng_vocab_length": 29996,
     "d_model": 768,
     "d_ff": 2048,
     "d_k": 64,
@@ -13,12 +13,12 @@
     "cls_word": "[CLS]",
     "pad_word": "[PAD]",
     "mask_word": "[MASK]",
-    "max_seq_length": 40,
+    "max_seq_length": 60,
     "batch_size": 64,
     "learning_rate": 0.00005,
     "optimizer_gamma": 0.1,
     "wandb_name": "franknoh",
     "wandb_id": "transformer_nlp",
-    "kor_vocab_path": "data/korean_vocab.txt",
-    "eng_vocab_path": "data/english_vocab.txt"
+    "kor_vocab_path": "vocab/korean_vocab.txt",
+    "eng_vocab_path": "vocab/english_vocab.txt"
 }

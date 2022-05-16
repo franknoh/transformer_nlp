@@ -1,11 +1,5 @@
-import tokenization
 import pandas
-import random
-import json
 import torch
-import copy
-
-import numpy as np
 
 
 class TranslationDataset(torch.utils.data.Dataset):
@@ -48,9 +42,9 @@ class TranslationDataset(torch.utils.data.Dataset):
         tgt_input = tgt_input[:self.tgt_length]
         tgt_output = tgt_output[:self.tgt_length]
 
-        while len(tgt_input) < self.tgt_length + 1:
+        while len(tgt_input) < self.tgt_length:
             tgt_input.append(self.padding_token)
-        while len(tgt_output) < self.tgt_length + 1:
+        while len(tgt_output) < self.tgt_length:
             tgt_output.append(self.padding_token)
 
         tgt_input = self.tgt_tokenizer.convert_tokens_to_ids(tgt_input)
