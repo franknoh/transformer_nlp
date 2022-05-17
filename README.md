@@ -26,9 +26,9 @@
 ```python
 import tokenization
 kor_tokenizer = tokenization.FullTokenizer(
-    vocab_file='vocab/kor_vocab.txt', do_lower_case=False)
+    vocab_file='vocab/korean_vocab.txt', do_lower_case=False)
 eng_tokenizer = tokenization.FullTokenizer(
-    vocab_file='vocab/eng_vocab.txt', do_lower_case=False)
+    vocab_file='vocab/english_vocab.txt', do_lower_case=False)
 
 kor_tokenizer.tokenize('대한항공은 인천-베이징 노선 운항과 관련해 이번 주 예정된 23일, 25일, 27일 항공편을 정상 운항하고 28일부터 4월 25일까지 잠정 중단할 예정이다.')
 

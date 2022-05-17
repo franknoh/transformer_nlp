@@ -224,12 +224,12 @@ def train(num_train_epochs, ckpt_path, dataset_path, learning_rate, batch_size, 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--num_train_epochs', type=int, default=10, help='number of train epochs')
+    parser.add_argument('--num_train_epochs', type=int, default=20, help='number of train epochs')
     parser.add_argument('--ckpt_path', type=str, default='', help='path to load model')
     parser.add_argument('--dataset_path', type=str, default='data/corpus.csv', help='path to load dataset')
     parser.add_argument('--learning_rate', type=float, default=0.00005, help='learning rate')
-    parser.add_argument('--batch_size', type=int, default=32, help='batch size')
-    parser.add_argument('--max_seq_length', type=int, default=40, help='max sequence length')
+    parser.add_argument('--batch_size', type=int, default=64, help='batch size')
+    parser.add_argument('--max_seq_length', type=int, default=120, help='max sequence length')
     parser.add_argument('--optimizer_gamma', type=float, default=0.9, help='optimizer gamma')
     args = parser.parse_args()
     train(args.num_train_epochs, args.ckpt_path, args.dataset_path, args.learning_rate, args.batch_size, args.max_seq_length, args.optimizer_gamma)
