@@ -5,7 +5,6 @@ from tokenization import convert_to_unicode
 import json
 import pandas
 
-"""
 corpus = pandas.read_csv('data/corpus.csv')
 
 kor_corpus = corpus['원문']
@@ -62,7 +61,7 @@ eng_trainer = WordPieceTrainer(
     limit_alphabet=10000
 )
 eng_tokenizer.train(files=[f"data/english.txt"], trainer=eng_trainer)
-eng_tokenizer.save(f"vocab/english.txt")"""
+eng_tokenizer.save(f"vocab/english.txt")
 
 with open(f"vocab/korean.txt", "rb") as f:
     kor_vocab = json.load(f)

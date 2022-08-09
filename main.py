@@ -8,6 +8,10 @@ import argparse
 import utils
 from math import sqrt
 from transformer.model import Translation
+from accelerate import Accelerator
+
+accelerator = Accelerator()
+device = accelerator.device
 
 def train(num_train_epochs, ckpt_path, dataset_path, learning_rate, batch_size, max_seq_length, optimizer_gamma):
     with open("config.json", "r") as f:
@@ -19,7 +23,6 @@ def train(num_train_epochs, ckpt_path, dataset_path, learning_rate, batch_size, 
     wandb.config['batch_size'] = batch_size
     wandb.config['max_seq_length'] = max_seq_length
     wandb.config['optimizer_gamma'] = optimizer_gamma
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     kor_tokenizer = tokenization.FullTokenizer(
         vocab_file=wandb.config['kor_vocab_path'], do_lower_case=False)
@@ -82,6 +85,11 @@ def train(num_train_epochs, ckpt_path, dataset_path, learning_rate, batch_size, 
     eng2kor_optimizer = torch.optim.Adam(eng2kor_transformer.parameters(), lr=wandb.config['learning_rate'])
     eng2kor_scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer=eng2kor_optimizer, gamma=wandb.config['optimizer_gamma'])
 
+    kor2eng_optimizer, kor2eng_scheduler, kor2eng_criterion, kor2eng_dataloader, eng2kor_optimizer, eng2kor_scheduler, eng2kor_criterion, eng2kor_dataloader = accelerator.prepare(
+        kor2eng_optimizer, kor2eng_scheduler, kor2eng_criterion, kor2eng_dataloader, eng2kor_optimizer,
+        eng2kor_scheduler, eng2kor_criterion, eng2kor_dataloader
+    )
+
     kor2eng_test_sentences = [
         '본 발명에서 자성의 세기로는 50 ~ 15000 G 정도를 가지는 영구자석이라면 적용 가능하다',
         '이 경우의 유기 액체란 적주식 분해 가스의 원료를 가리키는데, 이미 널리 사용되고 있는 CH3OH가 주체로 생각된다.',
@@ -118,7 +126,7 @@ def train(num_train_epochs, ckpt_path, dataset_path, learning_rate, batch_size, 
             loss = kor2eng_criterion(
                 dec_logits.view(-1, dec_logits.size(-1)),
                 target_batch.contiguous().view(-1))
-            loss.backward()
+            accelerator.backward(loss)
             kor2eng_optimizer.step()
 
             kor2eng_total_loss += loss.item()
@@ -143,7 +151,7 @@ def train(num_train_epochs, ckpt_path, dataset_path, learning_rate, batch_size, 
             loss = eng2kor_criterion(
                 dec_logits.view(-1, dec_logits.size(-1)),
                 target_batch.contiguous().view(-1))
-            loss.backward()
+            accelerator.backward(loss)
             eng2kor_optimizer.step()
 
             eng2kor_total_loss += loss.item()
@@ -167,10 +175,10 @@ def train(num_train_epochs, ckpt_path, dataset_path, learning_rate, batch_size, 
         print(f'kor2eng lr    : {kor2eng_scheduler.get_last_lr()}')
         print(f'eng2kor loss  : {eng2kor_total_loss / len(eng2kor_dataloader)}')
         print(f'eng2kor lr    : {eng2kor_scheduler.get_last_lr()}')
-        torch.save(kor2eng_transformer.state_dict(), f'models/kor2eng_{epoch}.pth')
-        torch.save(eng2kor_transformer.state_dict(), f'models/eng2kor_{epoch}.pth')
-        torch.save(kor2eng_transformer.state_dict(), f'models/kor2eng.pth')
-        torch.save(eng2kor_transformer.state_dict(), f'models/eng2kor.pth')
+        accelerator.save(kor2eng_transformer.state_dict(), f'models/kor2eng_{epoch}.pth')
+        accelerator.save(eng2kor_transformer.state_dict(), f'models/eng2kor_{epoch}.pth')
+        accelerator.save(kor2eng_transformer.state_dict(), f'models/kor2eng.pth')
+        accelerator.save(eng2kor_transformer.state_dict(), f'models/eng2kor.pth')
         print(f'saved model to "models/kor2eng_{epoch}.pth", "models/eng2kor_{epoch}.pth"')
 
         for test_sentence in kor2eng_test_sentences:
